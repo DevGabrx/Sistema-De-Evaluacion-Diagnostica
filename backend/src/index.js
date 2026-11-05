@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+const examenRoutes = require('./routes/examen-routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -8,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 // Middlewares
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/examenes', examenRoutes)
 
 // Endpoint de prueba
 app.get('/api/status', (req, res) => {
