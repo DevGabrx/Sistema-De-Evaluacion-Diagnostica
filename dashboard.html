@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard de Evaluación</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--tx:#1f2937;--mu:#6b7280;--pr:#4f46e5;--bd:#e5e7eb}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header{padding:20px 28px;background:var(--pr);color:#fff}h1{margin:0;font-size:1.3rem}
+main{max-width:1100px;margin:0 auto;padding:24px;display:grid;gap:20px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px}
+.kpi b{display:block;font-size:1.8rem;color:var(--pr)}.kpi span{color:var(--mu);font-size:.85rem}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+h2{font-size:1rem;margin:0 0 12px}
+.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);white-space:nowrap}
+button{background:var(--pr);color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer}
+button:disabled{opacity:.6;cursor:wait}
+#diag{white-space:pre-wrap;line-height:1.5;margin-top:10px}
+.err{color:#b91c1c}
+</style>
+</head>
+<body>
+<header><h1>Dashboard de Evaluación Diagnóstica</h1></header>
+<main>
+  <div class="kpis" id="kpis"></div>
+  <div class="charts">
+    <div class="card"><h2>Promedio de aciertos por componente (sobre 10)</h2><canvas id="cComp"></canvas></div>
+    <div class="card"><h2>Evolución del puntaje promedio (sobre 30)</h2><canvas id="cEvo"></canvas></div>
+  </div>
+  <div class="card">
+    <h2>Resultados recientes</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Estudiante</th><th>Fecha</th><th>Puntaje</th><th>Estad.</th><th>Geom.</th><th>Cálc.</th><th>Min.</th><th>Diagnóstico IA</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </div>
+  <div class="card" id="diagCard" hidden><h2 id="diagTitle"></h2><div id="diag"></div></div>
+</main>
+<script>
+const API = 'http://localhost:3000/api/examenes'; // cambia al desplegar
+let datos = [];
+
+const $ = id => document.getElementById(id);
+const get = async p => { const r = await fetch(API + p); if (!r.ok) throw new Error(r.status); return r.json(); };
+
+async function cargar() {
+  try {
+    const [res, filas] = await Promise.all([get('/dashboard/resumen'), get('/dashboard/resultados')]);
+    datos = filas;
+    $('kpis').innerHTML = [
+      ['Exámenes aplicados', res.total_examenes], ['Estudiantes', res.total_estudiantes],
+      ['Puntaje promedio', res.promedio + ' / 30'], ['Tiempo promedio', res.tiempo_promedio + ' min']
+    ].map(([t, v]) => `<div class="card kpi"><b>${v}</b><span>${t}</span></div>`).join('');
+
+    new Chart($('cComp'), { type: 'bar',
+      data: { labels: ['Estadística', 'Geometría', 'Cálculo y Álgebra'],
+        datasets: [{ data: [res.estadistica, res.geometria, res.calculo], backgroundColor: ['#6366f1', '#10b981', '#f59e0b'] }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 10 } } } });
+    new Chart($('cEvo'), { type: 'line',
+      data: { labels: res.evolucion.map(e => e.dia),
+        datasets: [{ data: res.evolucion.map(e => e.promedio), borderColor: '#4f46e5', tension: .3 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 30 } } } });
+    pintarTabla();
+  } catch (e) {
+    $('kpis').innerHTML = `<p class="err">No se pudo conectar con el backend (${e.message}). ¿Está corriendo en ${API}?</p>`;
+  }
+}
+
+function pintarTabla() {
+  $('rows').innerHTML = datos.map(r => `<tr>
+    <td>${esc(r.nombre)}</td><td>${new Date(r.fecha_aplicacion).toLocaleDateString('es-CO')}</td>
+    <td><b>${r.puntaje_global}</b>/30</td><td>${r.aciertos_estadistica}</td><td>${r.aciertos_geometria}</td>
+    <td>${r.aciertos_calculo}</td><td>${r.tiempo_empleado_minutos ?? '-'}</td>
+    <td><button onclick="diagnostico(${r.id_examen}, this)">${r.diagnostico_ia ? 'Ver' : 'Generar con Gemini'}</button></td></tr>`).join('')
+    || '<tr><td colspan="8">Aún no hay resultados.</td></tr>';
+}
+
+async function diagnostico(id, btn) {
+  const fila = datos.find(d => d.id_examen === id);
+  if (!fila.diagnostico_ia) {
+    btn.disabled = true; btn.textContent = 'Generando...';
+    try {
+      const r = await fetch(`${API}/dashboard/diagnostico/${id}`, { method: 'POST' });
+      if (!r.ok) throw new Error();
+      fila.diagnostico_ia = (await r.json()).diagnostico_ia;
+    } catch { btn.disabled = false; btn.textContent = 'Reintentar'; return alert('No se pudo generar el diagnóstico.'); }
+    pintarTabla();
+  }
+  $('diagTitle').textContent = `Diagnóstico de ${fila.nombre}`;
+  $('diag').textContent = fila.diagnostico_ia;
+  $('diagCard').hidden = false; $('diagCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+cargar();
+</script>
+</body>
+</html>
