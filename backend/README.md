@@ -8,8 +8,8 @@ El backend expone una API REST para el Sistema de Evaluación Diagnóstica. Est�
 
 ```text
 backend/
-├── .env
 └── src/
+    ├── .env
     ├── config/
     │   └── db.js
     ├── controllers/
@@ -46,7 +46,7 @@ Define las rutas de la API y las conecta con sus controladores.
 
 Es el punto de entrada y configuración principal del servidor.
 
-1. Carga las variables de entorno desde `backend/.env`.
+1. Carga las variables de entorno desde `backend/src/.env`.
 2. Importa Express, CORS y las rutas de exámenes.
 3. Crea la aplicación y determina el puerto con `PORT`; si no se define, utiliza `3000`.
 4. Habilita CORS y el análisis de cuerpos JSON mediante middlewares.
@@ -60,7 +60,7 @@ Al solicitar `GET /api/examenes`, Express recibe la petición en `index.js` y la
 
 ## Configuración y ejecución
 
-El archivo `backend/.env` debe definir las variables de entorno necesarias, incluyendo `DATABASE_URL` para la conexión con PostgreSQL. No se deben incluir valores secretos en esta documentación ni en el control de versiones.
+El archivo `backend/src/.env` debe definir las variables de entorno necesarias, incluyendo `DATABASE_URL` para la conexión con PostgreSQL. No se deben incluir valores secretos en esta documentación ni en el control de versiones.
 
 Desde la carpeta `backend`, el servidor puede iniciarse con:
 

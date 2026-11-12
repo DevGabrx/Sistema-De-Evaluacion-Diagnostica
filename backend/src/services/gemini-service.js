@@ -1,31 +1,35 @@
-// Llama a la API REST de Gemini (Node 18+ trae fetch, no requiere dependencias nuevas)
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+require('dotenv').config();
 
-async function generarDiagnostico({ nombre, tiempo, puntaje, estadistica, geometria, calculo }) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) throw new Error('GEMINI_API_KEY no está definida en el .env');
+// Inicializamos el cliente con la clave de tu .env
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-    const prompt = `Eres un tutor de matemáticas. Analiza este examen diagnóstico de 30 preguntas (10 por componente).
-Estudiante: ${nombre}
-Puntaje global: ${puntaje}/30
-Tiempo empleado: ${tiempo ?? 'no registrado'} minutos
-Aciertos: Estadística ${estadistica}/10, Geometría ${geometria}/10, Cálculo y Álgebra ${calculo}/10
+const generarDiagnosticoPedagogico = async (resultados) => {
+    try {
+        // Usamos gemini-1.5-flash porque es el más rápido y eficiente para texto
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-Responde en español, sin saludos, con estas secciones:
-FORTALEZAS: ...
-DEBILIDADES: ...
-PLAN DE ESTUDIO: (pasos concretos y breves)`;
+        // Diseño del Prompt (Ingeniería de Prompts)
+        const prompt = `
+        Eres un tutor experto en matemáticas. Un estudiante de tecnología acaba de finalizar una prueba diagnóstica con los siguientes resultados:
+        - Puntaje Global: ${resultados.puntaje_global}/30
+        - Estadística: ${resultados.aciertos_estadistica}/10
+        - Geometría: ${resultados.aciertos_geometria}/10
+        - Cálculo y Álgebra: ${resultados.aciertos_calculo}/10
+        - Tiempo empleado: ${resultados.tiempo_empleado_minutos} minutos.
 
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
-    if (!r.ok) throw new Error(`Gemini respondió ${r.status}: ${await r.text()}`);
-    const data = await r.json();
-    const texto = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
-    if (!texto) throw new Error('Gemini devolvió una respuesta vacía');
-    return texto;
-}
+        Genera un diagnóstico pedagógico estructurado en texto plano (sin markdown complejo) en 3 partes:
+        1. Fortalezas: Qué áreas domina basándote en los puntajes más altos y el tiempo.
+        2. Oportunidades de mejora: Qué conceptos falló (puntajes más bajos).
+        3. Plan de estudio: Una recomendación corta, directa y motivadora.
+        `;
 
-module.exports = { generarDiagnostico };
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    } catch (error) {
+        console.error("Error conectando con Gemini:", error);
+        return "El diagnóstico de IA no está disponible en este momento. Por favor, revisa tus puntajes.";
+    }
+};
+
+module.exports = { generarDiagnosticoPedagogico };
