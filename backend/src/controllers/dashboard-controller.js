@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { generarDiagnostico } = require('../services/gemini-service');
+const { generarDiagnosticoPedagogico } = require('../services/gemini-service');
 
 const COMP = { 1: 'estadistica', 2: 'geometria', 3: 'calculo' };
 
@@ -11,9 +11,13 @@ async function diagnosticarExamen(idExamen) {
          WHERE r.id_examen = $1`, [idExamen]);
     if (!rows.length) return null;
     const r = rows[0];
-    const texto = await generarDiagnostico({
-        nombre: r.nombre, tiempo: r.tiempo_empleado_minutos, puntaje: r.puntaje_global,
-        estadistica: r.aciertos_estadistica, geometria: r.aciertos_geometria, calculo: r.aciertos_calculo
+    const texto = await generarDiagnosticoPedagogico({
+        nombre: r.nombre,
+        tiempo_empleado_minutos: r.tiempo_empleado_minutos,
+        puntaje_global: r.puntaje_global,
+        aciertos_estadistica: r.aciertos_estadistica,
+        aciertos_geometria: r.aciertos_geometria,
+        aciertos_calculo: r.aciertos_calculo
     });
     await db.query('UPDATE Examenes_Resultados SET diagnostico_ia = $1 WHERE id_examen = $2', [texto, idExamen]);
     return texto;
@@ -34,7 +38,12 @@ const enviarExamen = async (req, res) => {
         const ac = { estadistica: 0, geometria: 0, calculo: 0 };
         for (const r of respuestas) {
             const p = clave.get(Number(r.id_pregunta));
-            if (p && String(r.respuesta).toUpperCase() === p.respuesta_correcta.trim()) ac[COMP[p.id_componente]]++;
+            if (p && String(r.respuesta).trim().toUpperCase() === String(p.respuesta_correcta).trim().toUpperCase()) {
+                const comp = COMP[p.id_componente];
+                if (comp && ac[comp] !== undefined) {
+                    ac[comp]++;
+                }
+            }
         }
         const puntaje = ac.estadistica + ac.geometria + ac.calculo;
 

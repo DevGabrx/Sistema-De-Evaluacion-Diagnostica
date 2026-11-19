@@ -22,8 +22,8 @@ export default function DashboardResultados() {
     // Si tu backend implementa las rutas de dashboard, las consumes aquí:
     // Nota: Si aún no tienes estas rutas creadas en Node.js, te muestro abajo cómo agregarlas.
     Promise.all([
-      fetch('http://localhost:3000/api/examenes/dashboard/resumen').then(r => r.json()).catch(() => null),
-      fetch('http://localhost:3000/api/examenes/dashboard/resultados').then(r => r.json()).catch(() => [])
+      fetch('http://localhost:3000/api/dashboard/resumen').then(r => r.json()).catch(() => null),
+      fetch('http://localhost:3000/api/dashboard/resultados').then(r => r.json()).catch(() => [])
     ])
       .then(([resData, filasData]) => {
         if (resData) setResumen(resData);
@@ -41,7 +41,7 @@ export default function DashboardResultados() {
     setDiagnosticoActivo('Consultando a la inteligencia artificial de Gemini, por favor espere...');
     
     try {
-      const res = await fetch(`http://localhost:3000/api/examenes/dashboard/diagnostico/${idExamen}`, {
+      const res = await fetch(`http://localhost:3000/api/dashboard/diagnostico/${idExamen}`, {
         method: 'POST'
       });
       if (!res.ok) throw new Error('Error al generar');
