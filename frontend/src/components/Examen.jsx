@@ -37,6 +37,25 @@ export default function Examen({ idEstudiante }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (enviando) return;
+
+    const totalPreguntas = preguntas.length;
+    const totalRespondidas = Object.keys(respuestas).length;
+
+    // Si aún no ha completado todas las preguntas, confirmar si desea continuar
+    if (totalRespondidas < totalPreguntas) {
+      const faltantes = totalPreguntas - totalRespondidas;
+      const confirmar = window.confirm(
+        `Has respondido ${totalRespondidas} de ${totalPreguntas} preguntas.\n` +
+        `Te faltan ${faltantes} pregunta(s) por responder.\n\n` +
+        `¿Estás seguro de que deseas enviar la evaluación?`
+      );
+
+      if (!confirmar) {
+        return;
+      }
+    }
+
     setError(null);
     setEnviando(true);
 
@@ -144,7 +163,6 @@ export default function Examen({ idEstudiante }) {
                                     value={op.key}
                                     checked={respuestas[p.id_pregunta] === op.key}
                                     onChange={() => handleOpcionChange(p.id_pregunta, op.key)}
-                                    required
                                   />
                                   <span><b>{op.key})</b> {op.texto}</span>
                                 </label>

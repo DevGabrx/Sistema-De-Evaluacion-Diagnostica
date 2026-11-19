@@ -17,26 +17,43 @@ export default function DashboardResultados() {
   const [error, setError] = useState(null);
   const [diagnosticoActivo, setDiagnosticoActivo] = useState(null);
   const [tituloDiag, setTituloDiag] = useState('');
+  const [generandoId, setGenerandoId] = useState(null); // Controla el estado de petición en curso por examen
 
   useEffect(() => {
-    // Si tu backend implementa las rutas de dashboard, las consumes aquí:
-    // Nota: Si aún no tienes estas rutas creadas en Node.js, te muestro abajo cómo agregarlas.
+    let montado = true;
+
     Promise.all([
       fetch('http://localhost:3000/api/dashboard/resumen').then(r => r.json()).catch(() => null),
       fetch('http://localhost:3000/api/dashboard/resultados').then(r => r.json()).catch(() => [])
     ])
       .then(([resData, filasData]) => {
+        if (!montado) return;
         if (resData) setResumen(resData);
         if (filasData) setResultados(filasData);
         setLoading(false);
       })
       .catch((err) => {
+        if (!montado) return;
         setError('No se pudo conectar con los endpoints del dashboard.');
         setLoading(false);
       });
+
+    return () => {
+      montado = false;
+    };
   }, []);
 
+  // Muestra el diagnóstico ya existente en memoria o BD sin hacer peticiones a la API
+  const mostrarDiagnostico = (diagnostico, nombreEstudiante) => {
+    setTituloDiag(`Diagnóstico de ${nombreEstudiante}`);
+    setDiagnosticoActivo(diagnostico);
+  };
+
+  // Solo se invoca si el examen NO tiene diagnóstico previo
   const generarDiagnosticoIA = async (idExamen, nombreEstudiante) => {
+    if (generandoId !== null) return; // Bloquear si ya hay una petición en curso
+
+    setGenerandoId(idExamen);
     setTituloDiag(`Generando diagnóstico para ${nombreEstudiante}...`);
     setDiagnosticoActivo('Consultando a la inteligencia artificial de Gemini, por favor espere...');
     
@@ -46,11 +63,19 @@ export default function DashboardResultados() {
       });
       if (!res.ok) throw new Error('Error al generar');
       const data = await res.json();
+      
       setDiagnosticoActivo(data.diagnostico_ia);
       setTituloDiag(`Diagnóstico de ${nombreEstudiante}`);
+
+      // Actualizar el examen en el estado local para que el botón pase a "Ver" inmediatamente
+      setResultados(prev => prev.map(item => 
+        item.id_examen === idExamen ? { ...item, diagnostico_ia: data.diagnostico_ia } : item
+      ));
     } catch {
       setDiagnosticoActivo('No se pudo conectar con el servicio de IA.');
       setTituloDiag('Error');
+    } finally {
+      setGenerandoId(null);
     }
   };
 
@@ -113,9 +138,22 @@ export default function DashboardResultados() {
                       <td>{r.aciertos_calculo}</td>
                       <td>{r.tiempo_empleado_minutos ?? '-'}</td>
                       <td>
-                        <button onClick={() => generarDiagnosticoIA(r.id_examen, r.nombre)}>
-                          {r.diagnostico_ia ? 'Ver' : 'Generar con Gemini'}
-                        </button>
+                        {r.diagnostico_ia ? (
+                          <button 
+                            type="button" 
+                            onClick={() => mostrarDiagnostico(r.diagnostico_ia, r.nombre)}
+                          >
+                            Ver
+                          </button>
+                        ) : (
+                          <button 
+                            type="button"
+                            disabled={generandoId !== null}
+                            onClick={() => generarDiagnosticoIA(r.id_examen, r.nombre)}
+                          >
+                            {generandoId === r.id_examen ? 'Generando...' : 'Generar con Gemini'}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -135,7 +173,7 @@ export default function DashboardResultados() {
         {diagnosticoActivo && (
           <div className="card" id="diagCard">
             <h2 id="diagTitle">{tituloDiag}</h2>
-            <div id="diag">{diagnosticoActivo}</div>
+            <div id="diag" style={{ whiteSpace: 'pre-line' }}>{diagnosticoActivo}</div>
           </div>
         )}
       </main>
